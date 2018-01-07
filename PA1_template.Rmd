@@ -5,21 +5,117 @@ output:
     keep_md: true
 ---
 
+# Introduction 
+
+This document contains the first assignment of the Coursera Reproducible Research course, dated 07/01/2018. The aim is to read in a data set, preprocess it to a usage stage and present an analysis and further extension of the data set.
+
+This section loads the appropriate libraries
+```{r}
+library(ggplot2, readr);library(dplyr);library(tidyr)
+```
 
 ## Loading and preprocessing the data
 
+The existing dataset has variables: 
+*steps
 
+*date
+
+*interval (representing the 5-minute interval the steps are counted in). The data is read in as is. Specific data tables are made to use for the total step count analysis and the step-count by time analysis
+
+```{r, echo=TRUE}
+datStore = read.csv("F:/RepData_PeerAssessment1/activity/activity.csv")
+totalStepStore <-aggregate(data=datStore,steps~date,sum)
+colnames(totalStepStore) <- c("date", "StepsOnDay")
+intervalAvg <- aggregate(data=datStore,steps~interval,median)
+colnames(intervalAvg) <- c("interval", "steps")
+```
 
 ## What is mean total number of steps taken per day?
 
+For this section we want a histogram of the total number of steps per day, and the mean and median number of steps per day. Firstly a histrogram of total number of steps per day.
 
+```{r, echo=TRUE}
+ggplot(data=totalStepStore, aes(totalStepStore$StepsOnDay))+geom_histogram()
+```
+And the mean and median number of total steps per day is
+```{r, echo=TRUE}
+mean(totalStepStore$StepsOnDay)
+median(totalStepStore$StepsOnDay)
+```
 
 ## What is the average daily activity pattern?
 
+```{r, echo=TRUE}
+ggplot(data=intervalAvg, aes(interval, steps))+geom_line()+ xlab("# Interval")+ylab("Steps in 5 minute interval")
+```
 
+The interval number with the highest average steps is 
+
+```{r, echo=TRUE}
+intervalAvg$interval[which(intervalAvg$step==max(intervalAvg$steps, na.rm=TRUE))]
+```
 
 ## Imputing missing values
 
+There's a number of NA values in the dataset. The summary of datStore$steps is :
+```{r, echo=TRUE}
+summary(datStore$steps)
+```
+and we can see there are 2304 NA values. To fill this in we will use the median number of steps for that interval value. A subfunction that will check is steps is NA in full table, and if so replace with median, will be used. 
 
+```{r, echo=TRUE}
+filledDatStore <-datStore
+replace_unfilled = function(tarOne, tarTwo){
+  if(is.na(tarOne)){
+    return(tarTwo)
+  }
+  return(tarOne)
+}
+filledDatStore$steps = mapply(replace_unfilled, datStore$steps, intervalAvg$steps)
+summary(filledDatStore)
+```
+The summary shows that there are now no NA values \o/.
+
+The updated histogram of information is
+
+```{r, echo=TRUE}
+intervalAvgFilled <- aggregate(data=filledDatStore,steps~interval,median)
+colnames(intervalAvgFilled) <- c("interval", "steps")
+
+ggplot(data=intervalAvgFilled, aes(interval, steps))+geom_line()+ xlab("# Interval")+ylab("Steps in 5 minute interval")
+
+```
+
+And the mean and median values are
+```{r, echo=TRUE}
+totalStepStore <-aggregate(data=filledDatStore,steps~date,sum)
+mean(totalStepStore$steps)
+median(totalStepStore$steps)
+```
+
+As a consequence of this, the mean total steps per day drops from 10766 (excluding NAs) to 9503 (more than 10%, a small decrease) and median from 10765 to 10395, a less significant decrease.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+First add a factor for weekday or weekend
+
+```{r, echo=TRUE}
+filledDatStore$dayname <- weekdays(as.Date(filledDatStore$date))
+head(filledDatStore)
+
+typeOfDay = function(dayname){
+  if(dayname %in% c("Saturday","Sunday")) {
+    return("weekend")
+  }
+  return("weekday")
+}
+
+filledDatStore$daytype = as.factor(apply(as.matrix(filledDatStore),1,typeOfDay))
+
+```
+Now plot weekday time series and weekend time series to show differences in activity. New data frames for each type will be created.
+
+```{r, echo=TRUE}
+ggplot(data=filledDatStore, aes(interval, steps,group=daytype))+geom_line()
+```
